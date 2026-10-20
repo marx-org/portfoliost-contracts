@@ -1,6 +1,6 @@
 # portfoliost-contracts
 
-Monorepo containing two independently-published `@marx2` packages:
+Monorepo containing two independently-published `@marx-org` packages:
 
 | Package | Description | Workflow |
 |---------|-------------|----------|
@@ -28,5 +28,5 @@ Push to `main` — CI auto-bumps the patch version, commits, tags, and publishes
 
 ## Structure
 
-- `.npmrc` — shared GitHub Packages registry config (both packages use `@marx2` scope)
+- `.npmrc` — shared GitHub Packages registry config (both packages use `@marx-org` scope)
 - `.gitignore` — shared ignore rules
