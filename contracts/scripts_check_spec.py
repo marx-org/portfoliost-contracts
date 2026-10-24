@@ -229,8 +229,26 @@ if "consolidated" not in portfolio_name_desc or "null on the per-portfolio route
     print("Position.portfolioName must document consolidated and per-portfolio semantics", file=sys.stderr)
     sys.exit(1)
 
+derivative_fields = {
+    "direction": {"type": "string", "enum": {"LONG", "SHORT"}},
+    "optionType": {"type": "string", "enum": {"CALL", "PUT"}},
+    "strikePrice": {"type": "number"},
+    "expirationDate": {"type": "string", "format": "date"},
+}
+for name, expected in derivative_fields.items():
+    prop = position_props.get(name, {})
+    if name in position_required or prop.get("type") != expected["type"] or not prop.get("nullable"):
+        print(f"Position.{name} must be optional and nullable with type {expected['type']}", file=sys.stderr)
+        sys.exit(1)
+    if "format" in expected and prop.get("format") != expected["format"]:
+        print(f"Position.{name} must use format {expected['format']}", file=sys.stderr)
+        sys.exit(1)
+    if "enum" in expected and set(prop.get("enum", [])) != expected["enum"]:
+        print(f"Position.{name} must declare enum {sorted(expected['enum'])}", file=sys.stderr)
+        sys.exit(1)
+
 print(
     "openapi.yaml OK: parses, no duplicate keys, §68/§70 fields present, "
     "TRANSFER_OUT/TRANSFER_IN declared, virtual-portfolio surface declared, "
-    "position lifecycle/membership documented"
+    "position lifecycle/membership and derivative metadata documented"
 )
