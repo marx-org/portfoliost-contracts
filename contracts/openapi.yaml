@@ -1564,6 +1564,25 @@ components:
         companyName: { type: string }
         assetType: { type: string }
         contractSize: { type: number, nullable: true }
+        direction:
+          type: string
+          enum: [LONG, SHORT]
+          nullable: true
+          description: Position direction; SHORT identifies a short derivative position.
+        optionType:
+          type: string
+          enum: [CALL, PUT]
+          nullable: true
+          description: Derivative option type; null for non-option positions.
+        strikePrice:
+          type: number
+          nullable: true
+          description: Option strike price in instrument currency, when known.
+        expirationDate:
+          type: string
+          format: date
+          nullable: true
+          description: Option expiration date, when known.
         purchaseCurrency: { type: string }
         instrumentCurrency: { type: string }
         quantity: { type: number }
