@@ -160,7 +160,77 @@ for phrase in ("labelId", "cashLegOnTrade"):
         )
         sys.exit(1)
 
+# 6. lifecycle-complete consolidated positions retain their portfolio-membership
+#    identity. The descriptions are the contract's only declaration that closed
+#    rows are retained and that a shared position is returned once per membership.
+positions_op = doc.get("paths", {}).get("/portfolios/positions", {}).get("get", {})
+positions_text = (
+    f"{positions_op.get('summary', '')} {positions_op.get('description', '')}"
+).lower()
+for phrase in (
+    "open and closed",
+    "once per membership",
+    "not aggregated by symbol",
+    "portfolioid",
+    "portfolioname",
+):
+    if phrase not in positions_text:
+        print(
+            f"GET /portfolios/positions no longer documents lifecycle/membership "
+            f"semantics ({phrase!r} missing)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+position = schemas.get("Position", {})
+position_props = position.get("properties", {})
+position_required = set(position.get("required", []))
+if not {"isOpen", "portfolioId"}.issubset(position_required):
+    print("Position.isOpen and Position.portfolioId must remain required", file=sys.stderr)
+    sys.exit(1)
+if {"closedAt", "portfolioName"} & position_required:
+    print("Position.closedAt and Position.portfolioName must remain optional", file=sys.stderr)
+    sys.exit(1)
+if position_props.get("isOpen", {}).get("type") != "boolean":
+    print("Position.isOpen is missing or not a boolean", file=sys.stderr)
+    sys.exit(1)
+is_open_desc = position_props.get("isOpen", {}).get("description", "").lower()
+if "currently held" not in is_open_desc or "retained as history" not in is_open_desc:
+    print(
+        "Position.isOpen must distinguish currently held positions from retained closed history",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+closed_at = position_props.get("closedAt", {})
+if (
+    closed_at.get("type") != "string"
+    or closed_at.get("format") != "date-time"
+    or not closed_at.get("nullable")
+):
+    print("Position.closedAt must remain a nullable timestamp", file=sys.stderr)
+    sys.exit(1)
+closed_at_desc = closed_at.get("description", "").lower()
+if "fully closed" not in closed_at_desc or "null while" not in closed_at_desc:
+    print("Position.closedAt must document the full-close timestamp", file=sys.stderr)
+    sys.exit(1)
+portfolio_id = position_props.get("portfolioId", {})
+if (
+    portfolio_id.get("type") != "string"
+    or portfolio_id.get("format") != "uuid"
+    or "membership" not in portfolio_id.get("description", "").lower()
+):
+    print("Position.portfolioId must identify the row's portfolio membership", file=sys.stderr)
+    sys.exit(1)
+if not position_props.get("portfolioName", {}).get("nullable"):
+    print("Position.portfolioName must remain nullable", file=sys.stderr)
+    sys.exit(1)
+portfolio_name_desc = position_props.get("portfolioName", {}).get("description", "").lower()
+if "consolidated" not in portfolio_name_desc or "null on the per-portfolio route" not in portfolio_name_desc:
+    print("Position.portfolioName must document consolidated and per-portfolio semantics", file=sys.stderr)
+    sys.exit(1)
+
 print(
     "openapi.yaml OK: parses, no duplicate keys, §68/§70 fields present, "
-    "TRANSFER_OUT/TRANSFER_IN declared, virtual-portfolio surface declared"
+    "TRANSFER_OUT/TRANSFER_IN declared, virtual-portfolio surface declared, "
+    "position lifecycle/membership documented"
 )
