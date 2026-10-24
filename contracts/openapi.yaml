@@ -1556,7 +1556,10 @@ components:
         # #115 — the portfolio this row is VIEWED under (the membership the list
         # was queried by), not a single-owner column: ownership is many-to-many
         # (a position may belong to several portfolios via position_portfolios).
-        portfolioId: { type: string, format: uuid }
+        portfolioId:
+          type: string
+          format: uuid
+          description: Portfolio membership represented by this row; a position shared across portfolios appears once per membership.
         symbol: { type: string }
         companyName: { type: string }
         assetType: { type: string }
@@ -1573,9 +1576,15 @@ components:
         sector: { type: string }
         industry: { type: string }
         country: { type: string }
-        isOpen: { type: boolean }
+        isOpen:
+          type: boolean
+          description: True when the position is currently held; false when it is closed and retained as history.
         openedAt: { type: string, format: date-time }
-        closedAt: { type: string, nullable: true }
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the position was fully closed; null while the position is open.
         currentPrice: { type: number }
         priceSource: { type: string }
         priceAsOf: { type: string, format: date-time }
@@ -1595,7 +1604,10 @@ components:
         # Nullable (not absent-from-schema) so `/portfolios/{id}/positions` keeps
         # satisfying `Position` unchanged: a per-portfolio page does not need to
         # label every row with the portfolio it is already entirely about.
-        portfolioName: { type: string, nullable: true }
+        portfolioName:
+          type: string
+          nullable: true
+          description: Portfolio name for consolidated rows; null on the per-portfolio route, where the route already supplies this context.
         logo: { type: string, nullable: true }
         labels:
           type: array
@@ -3955,10 +3967,12 @@ paths:
   /portfolios/positions:
     get:
       tags: [Portfolios]
-      summary: Open positions across all portfolios
+      summary: Open and closed positions across all portfolios
       description: >-
-        Every OPEN position the identity holds, across every one of its
-        portfolios, each carrying `portfolioName`.
+        Every position/portfolio membership across all of the identity's
+        portfolios, including both open and closed positions. A position shared
+        across portfolios appears once per membership, carrying that row's
+        `portfolioId` and `portfolioName`; rows are not aggregated by symbol.
 
         Distinct from `/portfolios/held-stocks`, which aggregates BY SYMBOL and
         so cannot answer "which portfolio is this row from" — the question the
@@ -3967,8 +3981,10 @@ paths:
         Unlike `/portfolios/{id}/positions` it needs no id, and it deliberately
         returns no portfolio-specific derived state.
 
-        `portfolioName` is null on the per-portfolio route, which keeps
-        satisfying the same `Position` schema unchanged.
+        `isOpen` distinguishes currently held positions from retained closed
+        history, and `closedAt` records when a position was fully closed (null
+        while it remains open). `portfolioName` is null on the per-portfolio
+        route, which keeps satisfying the same `Position` schema unchanged.
       operationId: getAllPositions
       security: [{ bearerAuth: [] }]
       responses:
