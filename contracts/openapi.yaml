@@ -1764,6 +1764,22 @@ components:
                   properties:
                     date: { type: string }
                     value: { type: number }
+                description: >-
+                  Flow-adjusted return index for statistics, starting at 100.
+                  This is not the absolute benchmark value plotted on the
+                  performance chart.
+              absoluteTimeSeries:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date: { type: string }
+                    value: { type: number }
+                description: >-
+                  Absolute flow-mirrored benchmark value in the portfolio base
+                  currency. This is the series plotted beside the absolute
+                  portfolio and invested values; deposits and withdrawals are
+                  visible as value steps.
               returnPercent: { type: number }
               volatility: { type: number }
         portfolioCurrency: { type: string }
