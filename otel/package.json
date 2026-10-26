@@ -11,11 +11,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs"
   },
   "repository": {
     "type": "git",
