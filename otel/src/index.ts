@@ -27,6 +27,13 @@ const HTTP_DURATION_VIEWS: ViewOptions[] = [
   },
 ]
 
+const NOOP_SPAN_EXPORTER: SpanExporter = {
+  export(_spans, resultCallback) {
+    resultCallback({ code: 0 })
+  },
+  shutdown: async () => {},
+}
+
 /**
  * Build an OTel Resource with standard pfire service attributes.
  */
@@ -44,6 +51,7 @@ export interface CreateSdkOpts {
   serviceName: string
   metricReader: MetricReader
   instrumentations?: Instrumentation[]
+  /** Pass an exporter to opt in to trace export. Tracing is disabled when omitted. */
   traceExporter?: SpanExporter
 }
 
@@ -51,7 +59,8 @@ export interface CreateSdkOpts {
  * Create and return a configured NodeSDK instance.
  * Call `sdk.start()` after receiving this.
  *
- * Traces default to NoopSpanExporter — wire Tempo exporter in D57.
+ * Trace exporting is disabled by default. Pass a trace exporter to opt in — wire Tempo exporter
+ * in D57.
  */
 export function createSdk(opts: CreateSdkOpts): NodeSDK {
   const sdkOpts: ConstructorParameters<typeof NodeSDK>[0] = {
@@ -62,6 +71,12 @@ export function createSdk(opts: CreateSdkOpts): NodeSDK {
   }
   if (opts.traceExporter) {
     sdkOpts.traceExporter = opts.traceExporter
+  } else {
+    // Older NodeSDK versions only support traceExporter; newer versions support spanProcessors.
+    // Supply a no-op exporter for the former and an empty processor list for the latter, so neither
+    // path falls back to the environment-driven OTLP exporter (localhost:4318 by default).
+    sdkOpts.traceExporter = NOOP_SPAN_EXPORTER
+    sdkOpts.spanProcessors = []
   }
   return new NodeSDK(sdkOpts)
 }
