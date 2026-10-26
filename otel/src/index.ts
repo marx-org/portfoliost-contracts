@@ -67,6 +67,10 @@ export function createSdk(opts: CreateSdkOpts): NodeSDK {
     resource: createResource(opts.serviceName),
     metricReader: opts.metricReader,
     instrumentations: opts.instrumentations ?? [],
+    // NodeSDK otherwise defaults OTEL_LOGS_EXPORTER to OTLP. Pino's
+    // auto-instrumentation forwards records to the SDK LoggerProvider, so this
+    // would also send logs to localhost:4318 when no collector is configured.
+    logRecordProcessors: [],
     views: HTTP_DURATION_VIEWS,
   }
   if (opts.traceExporter) {

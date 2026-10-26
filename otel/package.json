@@ -45,6 +45,8 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "import-in-the-middle": "^3.5.2",
+    "pino": "^10.4.0",
     "@types/node": "^26.6.5",
     "hono": "^4.13.7",
     "typescript": "^7.0.2"
