@@ -9,6 +9,12 @@ service from silently sending spans to the OpenTelemetry SDK's default OTLP endp
 (`http://localhost:4318`) when no collector is configured. Setting OTLP endpoint environment
 variables alone does not enable trace export through this helper.
 
+OTel log export is also disabled by default. This prevents the NodeSDK's environment-driven
+OTLP Logs default from sending Pino instrumentation records to `localhost:4318`. Pino's normal
+stdout output is unchanged and remains available to Loki; `traceExporter` opts in only to traces.
+Setting `OTEL_LOGS_EXPORTER` or an OTLP logs endpoint alone does not enable OTel log export through
+this helper.
+
 Metrics are independent: continue passing the service's `PrometheusExporter` as `metricReader`
 to expose `/metrics` as usual.
 
