@@ -2,11 +2,14 @@
 import type { Resource } from "@opentelemetry/resources"
 import { resourceFromAttributes, defaultResource } from "@opentelemetry/resources"
 import { NodeSDK } from "@opentelemetry/sdk-node"
-import type { SpanExporter } from "@opentelemetry/sdk-trace-base"
 import type { MetricReader, ViewOptions } from "@opentelemetry/sdk-metrics"
 import type { Instrumentation } from "@opentelemetry/instrumentation"
 import type { PrometheusExporter } from "@opentelemetry/exporter-prometheus"
 import type { Context } from "hono"
+
+// Follow the consumer's NodeSDK type rather than the removed SDK 2 trace-base
+// package. This keeps the exporter contract aligned across SDK generations.
+type SpanExporter = NonNullable<NonNullable<ConstructorParameters<typeof NodeSDK>[0]>["traceExporter"]>
 
 /**
  * Views that rename the OTel http duration histograms so the JS Prometheus exporter
@@ -63,9 +66,9 @@ export interface CreateSdkOpts {
  * in D57.
  */
 export function createSdk(opts: CreateSdkOpts): NodeSDK {
-  const sdkOpts: ConstructorParameters<typeof NodeSDK>[0] = {
+  const sdkOpts: NonNullable<ConstructorParameters<typeof NodeSDK>[0]> = {
     resource: createResource(opts.serviceName),
-    metricReader: opts.metricReader,
+    metricReaders: [opts.metricReader],
     instrumentations: opts.instrumentations ?? [],
     // NodeSDK otherwise defaults OTEL_LOGS_EXPORTER to OTLP. Pino's
     // auto-instrumentation forwards records to the SDK LoggerProvider, so this

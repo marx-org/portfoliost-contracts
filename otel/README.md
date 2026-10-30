@@ -18,6 +18,15 @@ this helper.
 Metrics are independent: continue passing the service's `PrometheusExporter` as `metricReader`
 to expose `/metrics` as usual.
 
+## SDK compatibility
+
+The helper accepts the same public `metricReader` option with SDK 2 and SDK 3;
+internally it uses NodeSDK's supported `metricReaders` array. The trace exporter
+type follows the consumer's NodeSDK rather than the removed SDK 2
+`sdk-trace-base` package. Verification covers SDK 3 build/default-export tests,
+recorded Prometheus metrics, and a packed-library SDK 2 consumer typecheck and
+metrics smoke test. No trace or log export is enabled by the SDK upgrade.
+
 ## Opt in to OTLP tracing
 
 Install the OTLP trace exporter in the service that owns the collector configuration:
