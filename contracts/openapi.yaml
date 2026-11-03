@@ -1256,13 +1256,19 @@ components:
     # ─── Portfolios ────────────────────────────────────────────
     Portfolio:
       type: object
-      required: [id, userId, name, capitalBasis, currentValue, isPublic, isMarginEnabled, createdAt, updatedAt]
+      required: [id, userId, name, capitalBasis, currentValue, isPublic, isMarginEnabled, cashBaseCurrencyOnly, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         userId: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
         baseCurrency: { type: string }
+        cashBaseCurrencyOnly:
+          type: boolean
+          description: >-
+            Whether this portfolio holds cash only in baseCurrency. When true,
+            cash effects from trades and external cash rows are converted using
+            event-date FX. Investment and trade currencies remain unrestricted.
         # §41/S3 — RENAMED from `totalInvested`. Capital BASIS: net external
         # contributions PLUS the cost of anything transferred in or out. Not
         # "capital you put in" — see `externalContributions` for that.
@@ -1318,6 +1324,13 @@ components:
         description: { type: string, nullable: true }
         currency: { type: string }
         isPublic: { type: boolean }
+        cashBaseCurrencyOnly:
+          type: boolean
+          description: >-
+            Cash-only currency policy. When true, cash is held in baseCurrency;
+            investment and trade currencies remain unrestricted. Optional for
+            backward compatibility: omitted on create defaults to false and
+            omitted on update preserves the current value.
         isVirtual: { type: boolean, default: false, description: "True for a virtual portfolio; see the schema description for the label requirement." }
         labelId: { type: string, format: uuid, nullable: true, description: "Required when `isVirtual` is true, forbidden otherwise. Null on a casual portfolio." }
         # §87.5 — same UI-only meaning as on Portfolio; PATCH reuses this schema.
@@ -2307,12 +2320,18 @@ components:
     # ─── Import API (wallets-import-api §23) ─────────────────
     ImportPortfolioBootstrapRequest:
       type: object
-      required: [externalSource, name, currency]
+      required: [externalSource, name, currency, cashBaseCurrencyOnly]
       properties:
         externalSource: { type: string }
         name: { type: string }
         currency: { type: string }
         baseCurrency: { type: string }
+        cashBaseCurrencyOnly:
+          type: boolean
+          description: >-
+            Cash-only currency policy for the imported portfolio. When true,
+            cash is held in baseCurrency; investment and trade currencies remain
+            unrestricted. Importers must send the explicit policy value.
     ImportPortfolioBootstrapResponse:
       type: object
       required: [id, name, currency, created]

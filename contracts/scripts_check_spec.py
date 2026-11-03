@@ -136,6 +136,19 @@ if not portfolio_props.get("labelId", {}).get("nullable"):
         file=sys.stderr,
     )
     sys.exit(1)
+if portfolio_props.get("cashBaseCurrencyOnly", {}).get("type") != "boolean":
+    print("Portfolio.cashBaseCurrencyOnly is missing or not a boolean", file=sys.stderr)
+    sys.exit(1)
+if "cashBaseCurrencyOnly" not in portfolio.get("required", []):
+    print("Portfolio.cashBaseCurrencyOnly must be required on portfolio reads", file=sys.stderr)
+    sys.exit(1)
+cash_policy_description = portfolio_props["cashBaseCurrencyOnly"].get("description", "").lower()
+if "cash" not in cash_policy_description or "investment" not in cash_policy_description:
+    print(
+        "Portfolio.cashBaseCurrencyOnly must document that the policy governs cash, not investments",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 create = schemas.get("CreatePortfolioRequest", {})
 create_props = create.get("properties", {})
@@ -149,6 +162,12 @@ if create_props.get("isVirtual", {}).get("default") is not False:
 if not create_props.get("labelId", {}).get("nullable"):
     print("CreatePortfolioRequest.labelId is missing or not nullable", file=sys.stderr)
     sys.exit(1)
+if create_props.get("cashBaseCurrencyOnly", {}).get("type") != "boolean":
+    print("CreatePortfolioRequest.cashBaseCurrencyOnly is missing or not a boolean", file=sys.stderr)
+    sys.exit(1)
+if "cashBaseCurrencyOnly" in create.get("required", []):
+    print("CreatePortfolioRequest.cashBaseCurrencyOnly must remain optional", file=sys.stderr)
+    sys.exit(1)
 create_desc = create.get("description", "")
 for phrase in ("labelId", "cashLegOnTrade"):
     if phrase not in create_desc:
@@ -159,6 +178,22 @@ for phrase in ("labelId", "cashLegOnTrade"):
             file=sys.stderr,
         )
         sys.exit(1)
+
+bootstrap = schemas.get("ImportPortfolioBootstrapRequest", {})
+bootstrap_props = bootstrap.get("properties", {})
+if bootstrap_props.get("cashBaseCurrencyOnly", {}).get("type") != "boolean":
+    print("ImportPortfolioBootstrapRequest.cashBaseCurrencyOnly is missing or not a boolean", file=sys.stderr)
+    sys.exit(1)
+if "cashBaseCurrencyOnly" not in bootstrap.get("required", []):
+    print("ImportPortfolioBootstrapRequest.cashBaseCurrencyOnly must be required", file=sys.stderr)
+    sys.exit(1)
+bootstrap_description = bootstrap_props["cashBaseCurrencyOnly"].get("description", "").lower()
+if "cash" not in bootstrap_description or "investment" not in bootstrap_description:
+    print(
+        "ImportPortfolioBootstrapRequest.cashBaseCurrencyOnly must document that the policy governs cash, not investments",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 # 6. lifecycle-complete consolidated positions retain their portfolio-membership
 #    identity. The descriptions are the contract's only declaration that closed
