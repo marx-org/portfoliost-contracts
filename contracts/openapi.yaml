@@ -2192,7 +2192,7 @@ components:
         feeExchangeRate:
           type: number
           nullable: true
-          description: Fee-currency -> transaction-currency rate for settlement.
+          description: Fee-currency -> portfolio base-currency rate. Omitted when the fee is already in the base currency (identity) or in the transaction currency (the trade's own rate applies).
     CreateTransactionRequest:
       type: object
       allOf:
