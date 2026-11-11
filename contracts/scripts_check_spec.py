@@ -149,6 +149,20 @@ if "cash" not in cash_policy_description or "investment" not in cash_policy_desc
         file=sys.stderr,
     )
     sys.exit(1)
+# The settlement currency is a separate knob from the base-currency flag: a broker
+# account can settle in a currency that is not the portfolio's display base (IBKR:
+# USD, base PLN). Declaring only the flag is what lets a single-currency account
+# accumulate a fictitious balance in every instrument's trading currency.
+if portfolio_props.get("cashCurrency", {}).get("type") != "string" or not portfolio_props.get("cashCurrency", {}).get("nullable"):
+    print(
+        "Portfolio.cashCurrency must be a nullable string: a portfolio with no "
+        "settlement currency keeps a per-currency ledger",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+if "cashCurrency" in portfolio.get("required", []):
+    print("Portfolio.cashCurrency must stay optional on portfolio reads", file=sys.stderr)
+    sys.exit(1)
 
 create = schemas.get("CreatePortfolioRequest", {})
 create_props = create.get("properties", {})
@@ -167,6 +181,12 @@ if create_props.get("cashBaseCurrencyOnly", {}).get("type") != "boolean":
     sys.exit(1)
 if "cashBaseCurrencyOnly" in create.get("required", []):
     print("CreatePortfolioRequest.cashBaseCurrencyOnly must remain optional", file=sys.stderr)
+    sys.exit(1)
+if create_props.get("cashCurrency", {}).get("type") != "string" or not create_props.get("cashCurrency", {}).get("nullable"):
+    print("CreatePortfolioRequest.cashCurrency must be a nullable string", file=sys.stderr)
+    sys.exit(1)
+if "cashCurrency" in create.get("required", []):
+    print("CreatePortfolioRequest.cashCurrency must remain optional", file=sys.stderr)
     sys.exit(1)
 create_desc = create.get("description", "")
 for phrase in ("labelId", "cashLegOnTrade"):
@@ -191,6 +211,13 @@ bootstrap_description = bootstrap_props["cashBaseCurrencyOnly"].get("description
 if "cash" not in bootstrap_description or "investment" not in bootstrap_description:
     print(
         "ImportPortfolioBootstrapRequest.cashBaseCurrencyOnly must document that the policy governs cash, not investments",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+if bootstrap_props.get("cashCurrency", {}).get("type") != "string" or not bootstrap_props.get("cashCurrency", {}).get("nullable"):
+    print(
+        "ImportPortfolioBootstrapRequest.cashCurrency must be a nullable string: an "
+        "imported account may settle cash in a currency other than the portfolio base",
         file=sys.stderr,
     )
     sys.exit(1)
