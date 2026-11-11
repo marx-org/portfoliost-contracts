@@ -1,6 +1,6 @@
 {
   "name": "@marx-org/contracts",
-  "version": "1.6.83",
+  "version": "1.6.84",
   "type": "module",
   "description": "Portfoliost API contract — OpenAPI spec shared by frontend and backend",
   "main": "./openapi.yaml",
