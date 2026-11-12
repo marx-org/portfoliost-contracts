@@ -2352,6 +2352,8 @@ components:
         displayLabel: { type: string }
         amount: { type: string }
         currency: { type: string }
+        toCurrency: { type: string, nullable: true, description: "FX_CONVERSION only: the currency received. Absent or equal to `currency` means the row is a balance correction." }
+        toAmount: { type: number, nullable: true, description: "FX_CONVERSION only: the amount received, positive." }
         exchangeRate: { type: number, nullable: true }
         reference: { type: string, nullable: true }
         date: { type: string }
