@@ -1413,7 +1413,9 @@ components:
           nullable: true
           description: |
             Money actually put in and taken out: DEPOSIT − WITHDRAWAL only, each at its own
-            historical rate. EXCLUDES in-kind stock transfers, which move no money.
+            historical rate. EXCLUDES in-kind stock transfers, which move no money, and the
+            internal kinds INTEREST, FEE and FX_CONVERSION, which move the balance but are
+            never contributions.
 
             The counterpart to `capitalBasis`, not a variant of it. Keep them apart —
             conflating "money put in" with "capital at risk" is what got `ADJUSTMENT` into
@@ -2050,7 +2052,7 @@ components:
         totalValue: { type: number, description: positionValue + cashValue (cash included, §68). Every amount here is converted into `currency`; a raw cross-currency sum is not acceptable. }
         cashValue: { type: number, description: This portfolio's cash balance in `currency`. May be negative on a margin account. }
         capitalBasis: { type: number, description: 'Capital BASIS: external contributions plus the cost of anything transferred in or out, signed. At COST — see PortfolioTotalMetrics.capitalBasis.' }
-        externalContributions: { type: number, nullable: true, description: 'Money actually put in and taken out: DEPOSIT − WITHDRAWAL only. EXCLUDES in-kind stock transfers, which move no money. The counterpart to `capitalBasis`, not a variant — conflating the two is what got ADJUSTMENT into trouble (§89.5).' }
+        externalContributions: { type: number, nullable: true, description: 'Money actually put in and taken out: DEPOSIT − WITHDRAWAL only. EXCLUDES in-kind stock transfers, which move no money, and the internal kinds INTEREST, FEE and FX_CONVERSION. The counterpart to `capitalBasis`, not a variant — conflating the two is what got ADJUSTMENT into trouble (§89.5).' }
         simpleReturnPercent: { type: number, description: '(totalValue − capitalBasis) / capitalBasis, and 0 when capitalBasis ≤ 0 — a non-positive basis would otherwise report a signed nonsense figure.' }
         investmentReturnPercent: { type: number }
         currencyImpactPercent: { type: number }
@@ -2251,6 +2253,41 @@ components:
             toPortfolioId: { type: string, format: uuid }
             targetAmount: { type: number, nullable: true, description: D22 elastic target leg; server-computed when omitted }
             targetFxRate: { type: number, nullable: true }
+    InterestCashRequest:
+      allOf:
+        - $ref: '#/components/schemas/FeeFxFields'
+        - type: object
+          required: [amount]
+          properties:
+            amount: { type: number, description: "Signed: positive = interest credited, negative = interest charged" }
+            currency: { type: string, description: Defaults to the portfolio's cash currency }
+            description: { type: string }
+            transactionDate: { type: string }
+    FeeCashRequest:
+      allOf:
+        - $ref: '#/components/schemas/FeeFxFields'
+        - type: object
+          required: [amount]
+          properties:
+            amount: { type: number, description: Magnitude of the charge; the server books it as a debit }
+            currency: { type: string, description: Defaults to the portfolio's cash currency }
+            description: { type: string }
+            transactionDate: { type: string }
+    ConversionCashRequest:
+      allOf:
+        - $ref: '#/components/schemas/FeeFxFields'
+        - type: object
+          required: [amount, currency, toAmount]
+          properties:
+            amount: { type: number, description: Signed leg handed over (negative for an outflow). For a pure correction this is the correction itself. }
+            currency: { type: string }
+            toCurrency:
+              type: string
+              nullable: true
+              description: Currency received. Omitted or equal to `currency` means a balance correction rather than an exchange.
+            toAmount: { type: number, description: Amount received, positive. Net effect = amount + toAmount }
+            description: { type: string }
+            transactionDate: { type: string }
     CurrencyInfo:
       type: object
       required: [code, name, minorUnits, popular]
@@ -2277,9 +2314,13 @@ components:
           properties:
             id: { type: string, format: uuid }
             portfolioId: { type: string, format: uuid }
-            type: { type: string }
+            type:
+              type: string
+              enum: [DEPOSIT, WITHDRAWAL, TRANSFER, INTEREST, FEE, FX_CONVERSION]
             amount: { type: number }
             currency: { type: string }
+            toCurrency: { type: string, nullable: true, description: "FX_CONVERSION only: the currency received" }
+            toAmount: { type: number, nullable: true, description: "FX_CONVERSION only: the amount received, positive" }
             createdAt: { type: string, format: date-time }
             description: { type: string, nullable: true }
             transactionDate: { type: string, nullable: true }
@@ -2438,11 +2479,25 @@ components:
           properties:
             type:
               type: string
-              enum: [DEPOSIT, WITHDRAWAL, TRANSFER]
+              enum: [DEPOSIT, WITHDRAWAL, TRANSFER, INTEREST, FEE, FX_CONVERSION]
+              description: >-
+                DEPOSIT/WITHDRAWAL are external: money crossing the boundary of the
+                account. INTEREST, FEE and FX_CONVERSION are internal - they move the
+                balance but are never contributions, so they are excluded from
+                externalContributions and from the capital basis. FX_CONVERSION with
+                `toCurrency` equal to `currency` (or absent) is a balance correction.
             amount:
               type: number
-              description: Signed; negative = cash out
+              description: Signed; negative = cash out. For FX_CONVERSION this is the leg handed over.
             currency: { type: string }
+            toCurrency:
+              type: string
+              nullable: true
+              description: "FX_CONVERSION only: the currency received. Absent or equal to `currency` means a correction, not an exchange."
+            toAmount:
+              type: number
+              nullable: true
+              description: "FX_CONVERSION only: the amount received, positive. The row's net effect is amount + toAmount."
             description: { type: string, nullable: true }
             transactionDate: { type: string, format: date, nullable: true }
             fees: { type: number, nullable: true }
@@ -4727,6 +4782,63 @@ paths:
       responses:
         '201':
           description: Transferred
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashTransaction' }
+  /portfolios/{id}/cash/interest:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [Portfolios]
+      summary: Record broker interest credited or charged on the account
+      operationId: addInterestCash
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InterestCashRequest' }
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashTransaction' }
+  /portfolios/{id}/cash/fees:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [Portfolios]
+      summary: Record an account charge that belongs to no transaction
+      operationId: addFeeCash
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeeCashRequest' }
+      responses:
+        '201':
+          description: Recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CashTransaction' }
+  /portfolios/{id}/cash/conversions:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [Portfolios]
+      summary: Record a currency conversion, or a balance correction when both legs are the same currency
+      operationId: addConversionCash
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConversionCashRequest' }
+      responses:
+        '201':
+          description: Recorded
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CashTransaction' }
