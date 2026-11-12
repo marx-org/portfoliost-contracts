@@ -2220,6 +2220,93 @@ components:
               nullable: true
               description: Optional user note on the transaction
             executedAt: { type: string, format: date-time }
+    # ─── In-kind position transfer (#74) ───────────────────────
+    TransferPositionRequest:
+      type: object
+      required: [symbol, quantity, toPortfolioId]
+      properties:
+        symbol:
+          type: string
+          description: >-
+            Instrument to move, in canonical form (AAPL, SAP.DE). Case-insensitive;
+            the server upper-cases it. The quantity is drawn FIFO from the source
+            portfolio's open lots for this symbol, so it must not exceed what is open.
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          description: Shares/units to move, in the CURRENT (post-restatement) units the holding shows.
+        toPortfolioId:
+          type: string
+          format: uuid
+          description: Receiving portfolio. Must belong to the same user and differ from the source.
+        executedAt:
+          type: string
+          format: date-time
+          description: When the movement happened; defaults to now. Used for the FIFO draw and the split restatement.
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+    TransferLeg:
+      type: object
+      required: [id, portfolioId, type, instrumentSymbol, quantity, price, totalAmount, currency, executedAt, transferGroupId]
+      properties:
+        id: { type: string, format: uuid }
+        portfolioId: { type: string, format: uuid }
+        type: { type: string, enum: [TRANSFER_OUT, TRANSFER_IN] }
+        instrumentSymbol: { type: string }
+        instrumentName: { type: string, nullable: true }
+        quantity: { type: number }
+        price:
+          type: number
+          description: The source lot's own cost per unit, carried over unchanged. Not a market price.
+        totalAmount:
+          type: number
+          description: quantity × price, informational only — nothing was bought or sold.
+        currency: { type: string }
+        assetType: { type: string }
+        executedAt: { type: string, format: date-time }
+        transferGroupId:
+          type: string
+          format: uuid
+        linkedTransferId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The id of the opposite leg of the same draw.
+        sourceTransactionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The lot-opening transaction this quantity came from (a BUY or an earlier TRANSFER_IN).
+        notes: { type: string, nullable: true }
+    TransferPositionResponse:
+      type: object
+      required: [transferGroupId, legs, quantity]
+      properties:
+        transferGroupId:
+          type: string
+          format: uuid
+          description: >-
+            Shared by every leg of the movement. One draw produces one TRANSFER_OUT and
+            one TRANSFER_IN; a position held in several lots produces several pairs.
+        legs:
+          type: array
+          items: { $ref: '#/components/schemas/TransferLeg' }
+          description: TRANSFER_OUT and TRANSFER_IN rows, in draw order.
+        quantity:
+          type: number
+          description: Echo of the quantity actually moved.
+        sourcePositionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The position the instrument left (null when it left no open position).
+        targetPositionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: The position the instrument arrived in.
     CashFeeFields:
       type: object
       properties:
@@ -4687,6 +4774,46 @@ paths:
             application/json:
               type: array
               items: { $ref: '#/components/schemas/Label' }
+  /portfolios/{id}/transfers:
+    parameters:
+      - $ref: '#/components/parameters/portfolioId'
+    post:
+      tags: [Portfolios]
+      summary: Move an instrument to another portfolio (in kind, no cash)
+      operationId: transferPosition
+      description: >-
+        The interactive counterpart of an import `TRANSFER_OUT` row. The quantity is
+        drawn FIFO from the source portfolio's open lots for that symbol, producing one
+        `TRANSFER_OUT` row per lot at that lot's own price and a matching `TRANSFER_IN`
+        in the receiving portfolio. No cash moves, no realised P/L is booked, and the
+        movement is not an external flow for return metrics.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferPositionRequest' }
+      responses:
+        '201':
+          description: Legs created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferPositionResponse' }
+        '404':
+          description: Source or target portfolio not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Source portfolio is virtual (read-only)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Target is the source, or the quantity exceeds the open lots for the symbol
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /portfolios/{id}/cash:
     parameters:
       - $ref: '#/components/parameters/portfolioId'
