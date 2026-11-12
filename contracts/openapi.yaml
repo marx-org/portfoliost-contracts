@@ -2285,7 +2285,7 @@ components:
               type: string
               nullable: true
               description: Currency received. Omitted or equal to `currency` means a balance correction rather than an exchange.
-            toAmount: { type: number, description: Amount received, positive. Net effect = amount + toAmount }
+            toAmount: { type: number, description: "Amount received, positive. Net effect = amount + toAmount. A conversion charge is netted into the leg it is quoted in by the writer — the ledger reads amounts and treats `fees` as metadata, and a charge in a third currency is rejected (422)." }
             description: { type: string }
             transactionDate: { type: string }
     CurrencyInfo:
