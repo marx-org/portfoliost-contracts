@@ -2220,9 +2220,25 @@ components:
               nullable: true
               description: Optional user note on the transaction
             executedAt: { type: string, format: date-time }
+    CashFeeFields:
+      type: object
+      properties:
+        fees:
+          type: number
+          minimum: 0
+          nullable: true
+          description: >-
+            Charge attached to the movement. For a cash row it is metadata: the
+            ledger replay reads the amounts, so a conversion charge must already
+            be netted into the leg it is quoted in.
+        feesType:
+          type: string
+          enum: [fixed, pct]
+          nullable: true
     DepositCashRequest:
       allOf:
         - $ref: '#/components/schemas/FeeFxFields'
+        - $ref: '#/components/schemas/CashFeeFields'
         - type: object
           required: [amount]
           properties:
@@ -2233,6 +2249,7 @@ components:
     WithdrawCashRequest:
       allOf:
         - $ref: '#/components/schemas/FeeFxFields'
+        - $ref: '#/components/schemas/CashFeeFields'
         - type: object
           required: [amount]
           properties:
@@ -2243,6 +2260,7 @@ components:
     TransferCashRequest:
       allOf:
         - $ref: '#/components/schemas/FeeFxFields'
+        - $ref: '#/components/schemas/CashFeeFields'
         - type: object
           required: [amount, currency, toPortfolioId]
           properties:
@@ -2256,6 +2274,7 @@ components:
     InterestCashRequest:
       allOf:
         - $ref: '#/components/schemas/FeeFxFields'
+        - $ref: '#/components/schemas/CashFeeFields'
         - type: object
           required: [amount]
           properties:
@@ -2266,6 +2285,7 @@ components:
     FeeCashRequest:
       allOf:
         - $ref: '#/components/schemas/FeeFxFields'
+        - $ref: '#/components/schemas/CashFeeFields'
         - type: object
           required: [amount]
           properties:
@@ -2276,6 +2296,7 @@ components:
     ConversionCashRequest:
       allOf:
         - $ref: '#/components/schemas/FeeFxFields'
+        - $ref: '#/components/schemas/CashFeeFields'
         - type: object
           required: [amount, currency, toAmount]
           properties:
