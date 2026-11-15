@@ -123,6 +123,47 @@ components:
         default: timeWeighted
       description: Return-type calculation used for benchmark series and the authoritative portfolio return line (default timeWeighted)
 
+    # ─── Charting scope (feature #253) ─────────────────────────
+    chartAccounts:
+      name: accounts
+      in: query
+      schema: { type: array, items: { type: string, format: uuid } }
+      description: >-
+        Real portfolio (account) IDs to scope to. Repeat the parameter or pass a
+        comma-separated list. Omitted/empty = All owned real accounts. Invalid or
+        foreign IDs never silently broaden the scope.
+      style: form
+      explode: true
+    chartLabels:
+      name: labels
+      in: query
+      schema: { type: array, items: { type: string, format: uuid } }
+      description: >-
+        Current position-label IDs, combined with OR (any selected label matches).
+        Standalone cash events use their own labels. Omitted/empty = All.
+      style: form
+      explode: true
+    chartCurrency:
+      name: currency
+      in: query
+      schema: { type: string, minLength: 3, maxLength: 3 }
+      description: ISO-4217 display currency for comparable slices and points.
+    chartFrom:
+      name: from
+      in: query
+      schema: { type: string, format: date }
+      description: Inclusive window start (YYYY-MM-DD).
+    chartTo:
+      name: to
+      in: query
+      schema: { type: string, format: date }
+      description: Inclusive window end (YYYY-MM-DD).
+    chartMetric:
+      name: metric
+      in: query
+      schema: { type: string }
+      description: Chart-specific metric selector (e.g. twr or net_gain_change for quarterly performance).
+
   schemas:
     # ─── Shared ────────────────────────────────────────────────
     ErrorResponse:
@@ -1252,6 +1293,274 @@ components:
         revenue: { type: number }
         weight: { type: number }
         currency: { type: string }
+
+    # ─── Charting datasets (feature #253) ─────────────────────
+    # Chart filters are real data scope: an account set AND any selected
+    # position label (OR), with standalone cash-event labels and linked-trade
+    # deduplication. Empty/absent selections mean "All owned real accounts".
+    ChartScope:
+      type: object
+      description: >-
+        Resolved chart scope. `accountIds` are real portfolio IDs and `labelIds`
+        are position-label IDs combined with OR. Empty arrays mean All. Never
+        silently broadened by invalid or foreign IDs.
+      required: [accountIds, labelIds, currency]
+      properties:
+        accountIds:
+          type: array
+          items: { type: string, format: uuid }
+        labelIds:
+          type: array
+          items: { type: string, format: uuid }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        from: { type: string, format: date, nullable: true }
+        to: { type: string, format: date, nullable: true }
+        virtualAccountIds:
+          type: array
+          description: >-
+            Virtual portfolios resolved to their underlying real positions; never
+            counted as extra capital on top of the real accounts.
+          items: { type: string, format: uuid }
+
+    ChartMissingCoverage:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, description: Machine-readable reason code }
+        detail: { type: string, nullable: true }
+        symbols: { type: array, items: { type: string } }
+
+    ChartCoverage:
+      type: object
+      description: >-
+        Every dataset declares generation, as-of and completeness so the UI can
+        distinguish partial/current-period, stale and empty results instead of
+        inventing zeroes.
+      required: [generation, asOf, status]
+      properties:
+        generation: { type: integer }
+        asOf: { type: string, format: date-time }
+        status: { type: string, enum: [complete, partial, stale, pending, empty] }
+        partial: { type: boolean }
+        currentPeriod: { type: boolean, description: Current year/quarter bucket is incomplete }
+        stale: { type: boolean }
+        missing: { type: array, items: { $ref: '#/components/schemas/ChartMissingCoverage' } }
+
+    StockChartCategory:
+      type: string
+      description: >-
+        Fixed dividend-style stock categories (screenshot 8). Absence of an
+        assignment means `not_classified`; no automatic yield/growth classifier.
+      enum: [balanced, high_yield, high_growth, very_high_growth, not_classified]
+
+    StockChartCategoryAssignment:
+      type: object
+      description: >-
+        One user-owned assignment per stock across lots/accounts, keyed by owner
+        plus STOCK instrument identity (symbol and instrument currency). Option
+        contracts never inherit a stock's category by ticker collision.
+      required: [symbol, instrumentCurrency, category, updatedAt]
+      properties:
+        symbol: { type: string }
+        instrumentCurrency: { type: string, minLength: 3, maxLength: 3 }
+        name: { type: string, nullable: true }
+        category: { $ref: '#/components/schemas/StockChartCategory' }
+        updatedAt: { type: string, format: date-time }
+
+    StockChartCategoryUpdate:
+      type: object
+      required: [symbol, instrumentCurrency, category]
+      properties:
+        symbol: { type: string }
+        instrumentCurrency: { type: string, minLength: 3, maxLength: 3 }
+        category: { $ref: '#/components/schemas/StockChartCategory' }
+
+    ChartIncomePoint:
+      type: object
+      required: [period, total]
+      properties:
+        period: { type: string, description: 'Bucket label: YYYY-MM, YYYY or YYYY-Qn' }
+        dividends: { type: number, description: Received dividend income in the dataset currency }
+        interest: { type: number }
+        options: { type: number, description: Option premium / realized option P/L, separate from dividends and interest }
+        total: { type: number }
+        partial: { type: boolean }
+
+    ChartIncomeCumulativePoint:
+      type: object
+      required: [date, total]
+      properties:
+        date: { type: string, format: date }
+        dividends: { type: number }
+        interest: { type: number }
+        options: { type: number }
+        total: { type: number }
+        openingBalance: { type: number, description: Pre-window cumulative value at the first visible point }
+
+    ChartIncomeAnnualPoint:
+      type: object
+      required: [year, total]
+      properties:
+        year: { type: integer }
+        dividends: { type: number }
+        interest: { type: number }
+        options: { type: number }
+        total: { type: number }
+        priorYearTotal: { type: number, nullable: true }
+        yoyChangePercent: { type: number, nullable: true, description: Undefined (null) when the prior-year denominator is zero or missing }
+
+    ChartIncomeQuarterPoint:
+      type: object
+      required: [quarter, total]
+      properties:
+        quarter: { type: string, description: 'YYYY-Qn' }
+        dividends: { type: number }
+        interest: { type: number }
+        options: { type: number }
+        total: { type: number }
+        priorYearQuarterTotal: { type: number, nullable: true }
+        yoyChangePercent: { type: number, nullable: true }
+
+    ChartIncomeAveragePoint:
+      type: object
+      required: [year, divisor, amount]
+      properties:
+        year: { type: integer }
+        basis: { type: string, enum: [days, months] }
+        divisor: { type: number, description: '365 or 12 (calendar-year equivalent, not elapsed-day/month average)' }
+        amount: { type: number }
+        partial: { type: boolean }
+
+    ChartPayerCoverageMonth:
+      type: object
+      required: [year, month, count]
+      properties:
+        year: { type: integer }
+        month: { type: integer, minimum: 1, maximum: 12 }
+        count: { type: integer, description: Distinct currently-held stocks with known payment dates in the month }
+        partial: { type: boolean }
+
+    ChartIncomeData:
+      type: object
+      required: [currency, scope, coverage]
+      properties:
+        currency: { type: string }
+        scope: { $ref: '#/components/schemas/ChartScope' }
+        coverage: { $ref: '#/components/schemas/ChartCoverage' }
+        monthly: { type: array, items: { $ref: '#/components/schemas/ChartIncomePoint' } }
+        cumulative: { type: array, items: { $ref: '#/components/schemas/ChartIncomeCumulativePoint' } }
+        annual: { type: array, items: { $ref: '#/components/schemas/ChartIncomeAnnualPoint' } }
+        quarterly: { type: array, items: { $ref: '#/components/schemas/ChartIncomeQuarterPoint' } }
+        dailyAverageByYear: { type: array, items: { $ref: '#/components/schemas/ChartIncomeAveragePoint' } }
+        monthlyAverageByYear: { type: array, items: { $ref: '#/components/schemas/ChartIncomeAveragePoint' } }
+        payerCoverage: { type: array, items: { $ref: '#/components/schemas/ChartPayerCoverageMonth' } }
+
+    ChartAllocationSlice:
+      type: object
+      required: [key, value]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        value: { type: number, description: Comparable value in the dataset currency }
+        percent: { type: number, nullable: true }
+        sourceCurrency: { type: string, nullable: true }
+        sourceValue: { type: number, nullable: true }
+        unknown: { type: boolean, description: Classification is unknown/exposed rather than silently zeroed }
+
+    ChartAllocationData:
+      type: object
+      required: [currency, scope, coverage]
+      properties:
+        currency: { type: string }
+        scope: { $ref: '#/components/schemas/ChartScope' }
+        coverage: { $ref: '#/components/schemas/ChartCoverage' }
+        byCurrency: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        byAssetType: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        bySector: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        byCategory: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        byLabel: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        byCostBasis: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        positions:
+          type: array
+          description: Current holdings composition by instrument identity (not raw ticker only).
+          items: { $ref: '#/components/schemas/ChartAllocationSlice' }
+
+    ChartPerformancePoint:
+      type: object
+      required: [date, value]
+      properties:
+        date: { type: string, format: date }
+        value: { type: number }
+        invested: { type: number, nullable: true, description: Cumulative net external contributions }
+        capitalBasis: { type: number, nullable: true }
+        cumulativeIncome: { type: number, nullable: true }
+        cumulativeOptions: { type: number, nullable: true }
+        unpricedValue: { type: number, nullable: true }
+        carriedValue: { type: number, nullable: true }
+        twr: { type: number, nullable: true }
+        mwr: { type: number, nullable: true }
+        simple: { type: number, nullable: true }
+
+    ChartQuarterlyReturnPoint:
+      type: object
+      required: [quarter, endingValue]
+      properties:
+        quarter: { type: string, description: 'YYYY-Qn' }
+        endingValue: { type: number }
+        cumulativeNetContributions: { type: number }
+        twr: { type: number, nullable: true, description: Index-chained time-weighted return }
+        netGainChange: { type: number, nullable: true, description: '100 * ((Vq - Cq) - (Vprev - Cprev)) / Vq; null when the denominator is zero or unknown' }
+        partial: { type: boolean }
+
+    ChartScatterPoint:
+      type: object
+      required: [symbol, marketValue, totalProfit]
+      properties:
+        symbol: { type: string }
+        name: { type: string, nullable: true }
+        marketValue: { type: number }
+        totalProfit: { type: number, description: Realized + unrealized + received dividends under existing P/L rules }
+        realized: { type: number, nullable: true }
+        unrealized: { type: number, nullable: true }
+        dividends: { type: number, nullable: true }
+
+    ChartPerformanceData:
+      type: object
+      required: [currency, scope, coverage]
+      properties:
+        currency: { type: string }
+        scope: { $ref: '#/components/schemas/ChartScope' }
+        coverage: { $ref: '#/components/schemas/ChartCoverage' }
+        series: { type: array, items: { $ref: '#/components/schemas/ChartPerformancePoint' } }
+        quarterly: { type: array, items: { $ref: '#/components/schemas/ChartQuarterlyReturnPoint' } }
+        scatter: { type: array, items: { $ref: '#/components/schemas/ChartScatterPoint' } }
+
+    ChartCashPoint:
+      type: object
+      required: [date, balance]
+      properties:
+        date: { type: string, format: date }
+        balance: { type: number }
+
+    ChartContributionPoint:
+      type: object
+      required: [year, net]
+      properties:
+        year: { type: integer }
+        contributions: { type: number }
+        withdrawals: { type: number }
+        net: { type: number }
+        partial: { type: boolean }
+
+    ChartCashData:
+      type: object
+      required: [currency, scope, coverage]
+      properties:
+        currency: { type: string }
+        scope: { $ref: '#/components/schemas/ChartScope' }
+        coverage: { $ref: '#/components/schemas/ChartCoverage' }
+        balanceHistory: { type: array, items: { $ref: '#/components/schemas/ChartCashPoint' } }
+        annualContributions: { type: array, items: { $ref: '#/components/schemas/ChartContributionPoint' } }
 
     # ─── Portfolios ────────────────────────────────────────────
     Portfolio:
@@ -4303,6 +4612,118 @@ paths:
                       items:
                         type: array
                         items: { $ref: '#/components/schemas/Transaction' }
+  # ─── Charting (feature #253) ─────────────────────────────────
+  # Chart routes are static and MUST be declared before /portfolios/{id} so the
+  # wallets router matches them ahead of the dynamic portfolio-id route.
+  /portfolios/charting/income:
+    get:
+      tags: [Charting]
+      summary: Received income dataset (dividends/interest/options) for the chart scope
+      operationId: getChartIncome
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/chartAccounts'
+        - $ref: '#/components/parameters/chartLabels'
+        - $ref: '#/components/parameters/chartCurrency'
+        - $ref: '#/components/parameters/chartFrom'
+        - $ref: '#/components/parameters/chartTo'
+      responses:
+        '200':
+          description: Income dataset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChartIncomeData' }
+  /portfolios/charting/allocation:
+    get:
+      tags: [Charting]
+      summary: Allocation proportions in comparable market value
+      operationId: getChartAllocation
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/chartAccounts'
+        - $ref: '#/components/parameters/chartLabels'
+        - $ref: '#/components/parameters/chartCurrency'
+      responses:
+        '200':
+          description: Allocation dataset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChartAllocationData' }
+  /portfolios/charting/performance:
+    get:
+      tags: [Charting]
+      summary: Valuation, capital and cumulative income overlays with quarterly returns
+      operationId: getChartPerformance
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/chartAccounts'
+        - $ref: '#/components/parameters/chartLabels'
+        - $ref: '#/components/parameters/chartCurrency'
+        - $ref: '#/components/parameters/chartFrom'
+        - $ref: '#/components/parameters/chartTo'
+        - $ref: '#/components/parameters/chartMetric'
+      responses:
+        '200':
+          description: Performance dataset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChartPerformanceData' }
+  /portfolios/charting/cash:
+    get:
+      tags: [Charting]
+      summary: Broker cash balances through time and annual net external contributions
+      operationId: getChartCash
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/chartAccounts'
+        - $ref: '#/components/parameters/chartLabels'
+        - $ref: '#/components/parameters/chartCurrency'
+        - $ref: '#/components/parameters/chartFrom'
+        - $ref: '#/components/parameters/chartTo'
+      responses:
+        '200':
+          description: Cash dataset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChartCashData' }
+  /portfolios/charting/stock-categories:
+    get:
+      tags: [Charting]
+      summary: List the caller's fixed stock-category assignments
+      operationId: getStockChartCategories
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/chartAccounts'
+        - $ref: '#/components/parameters/chartLabels'
+      responses:
+        '200':
+          description: Stock-category assignments
+          content:
+            application/json:
+              type: array
+              items: { $ref: '#/components/schemas/StockChartCategoryAssignment' }
+    put:
+      tags: [Charting]
+      summary: Create or update one stock-category assignment
+      operationId: setStockChartCategory
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockChartCategoryUpdate' }
+      responses:
+        '200':
+          description: Updated assignment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockChartCategoryAssignment' }
+        '422':
+          description: Validation error (unknown category or identity)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /portfolios/{id}:
     parameters:
       - $ref: '#/components/parameters/portfolioId'
