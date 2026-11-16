@@ -1467,6 +1467,22 @@ components:
         sourceValue: { type: number, nullable: true }
         unknown: { type: boolean, description: Classification is unknown/exposed rather than silently zeroed }
 
+    ChartCostValuePoint:
+      type: object
+      description: >
+        Remaining cost basis against current market value for one label group.
+        Label groups are independent (a holding may carry several labels), so the
+        rows are not a partition and their sum is not a portfolio total.
+      required: [key, label, costBasis, value]
+      properties:
+        key: { type: string, description: Label id, or the unlabelled display bucket key }
+        label: { type: string }
+        costBasis: { type: number, description: Remaining cost basis in the dataset currency }
+        value: { type: number, description: Current market value in the dataset currency }
+        percentCost: { type: number, nullable: true }
+        percentValue: { type: number, nullable: true }
+        unknown: { type: boolean, description: A cost basis or value is unknown rather than silently zeroed }
+
     ChartAllocationData:
       type: object
       required: [currency, scope, coverage]
@@ -1479,7 +1495,7 @@ components:
         bySector: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
         byCategory: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
         byLabel: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
-        byCostBasis: { type: array, items: { $ref: '#/components/schemas/ChartAllocationSlice' } }
+        byCostBasis: { type: array, items: { $ref: '#/components/schemas/ChartCostValuePoint' } }
         positions:
           type: array
           description: Current holdings composition by instrument identity (not raw ticker only).
