@@ -1536,8 +1536,10 @@ components:
       type: object
       required: [symbol, marketValue, totalProfit]
       properties:
-        symbol: { type: string }
+        symbol: { type: string, description: Canonical instrument identity (asset type + symbol + instrument currency) }
         name: { type: string, nullable: true }
+        assetType: { type: string, nullable: true }
+        accounts: { type: array, description: Account names holding this identity, for the tooltip }
         marketValue: { type: number }
         totalProfit: { type: number, description: Realized + unrealized + received dividends under existing P/L rules }
         realized: { type: number, nullable: true }
