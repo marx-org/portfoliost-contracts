@@ -1321,6 +1321,10 @@ components:
             Virtual portfolios resolved to their underlying real positions; never
             counted as extra capital on top of the real accounts.
           items: { type: string, format: uuid }
+        benchmarks:
+          type: array
+          description: Benchmark symbols to mirror into (e.g. SPY, QQQ). Empty/absent = none.
+          items: { type: string }
 
     ChartMissingCoverage:
       type: object
@@ -1550,6 +1554,27 @@ components:
         series: { type: array, items: { $ref: '#/components/schemas/ChartPerformancePoint' } }
         quarterly: { type: array, items: { $ref: '#/components/schemas/ChartQuarterlyReturnPoint' } }
         scatter: { type: array, items: { $ref: '#/components/schemas/ChartScatterPoint' } }
+        benchmarks: { type: array, items: { $ref: '#/components/schemas/ChartBenchmarkSeries' } }
+
+    ChartBenchmarkPoint:
+      type: object
+      required: [date, value]
+      properties:
+        date: { type: string, format: date }
+        value: { type: number }
+
+    ChartBenchmarkSeries:
+      type: object
+      required: [symbol, name, absoluteTimeSeries]
+      properties:
+        symbol: { type: string }
+        name: { type: string }
+        # Flow-mirrored absolute values (same currency as the portfolio line).
+        absoluteTimeSeries: { type: array, items: { $ref: '#/components/schemas/ChartBenchmarkPoint' } }
+        # Indexed values (first point = 100) for a percent-normalised view.
+        timeSeries: { type: array, items: { $ref: '#/components/schemas/ChartBenchmarkPoint' } }
+        returnPercent: { type: number, nullable: true }
+        volatility: { type: number, nullable: true }
 
     ChartCashPoint:
       type: object
