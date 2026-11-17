@@ -1585,6 +1585,15 @@ components:
         date: { type: string, format: date }
         balance: { type: number }
 
+    ChartCashSeries:
+      type: object
+      description: One cash-balance line (per real account, or the combined total).
+      required: [key, label, points]
+      properties:
+        key: { type: string, description: Account id, or the combined-total key }
+        label: { type: string }
+        points: { type: array, items: { $ref: '#/components/schemas/ChartCashPoint' } }
+
     ChartContributionPoint:
       type: object
       required: [year, net]
@@ -1603,6 +1612,7 @@ components:
         scope: { $ref: '#/components/schemas/ChartScope' }
         coverage: { $ref: '#/components/schemas/ChartCoverage' }
         balanceHistory: { type: array, items: { $ref: '#/components/schemas/ChartCashPoint' } }
+        series: { type: array, description: One line per selected real account plus the combined total, items: { $ref: '#/components/schemas/ChartCashSeries' } }
         annualContributions: { type: array, items: { $ref: '#/components/schemas/ChartContributionPoint' } }
 
     # ─── Portfolios ────────────────────────────────────────────
