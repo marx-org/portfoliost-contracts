@@ -1594,6 +1594,26 @@ components:
         label: { type: string }
         points: { type: array, items: { $ref: '#/components/schemas/ChartCashPoint' } }
 
+    ChartContributionSeriesPoint:
+      type: object
+      description: Cumulative external owner funding as of a date, measured from the first recorded funding event.
+      required: [date, net]
+      properties:
+        date: { type: string, format: date }
+        net: { type: number, description: 'Running cumulative net owner funding (deposits minus withdrawals) in the chart display currency.' }
+        contributions: { type: number, description: 'Running cumulative deposits in the chart display currency.' }
+        withdrawals: { type: number, description: 'Running cumulative withdrawals as a positive magnitude in the chart display currency.' }
+        unknown: { type: boolean, description: 'True when at least one event amount could not be converted into the display currency; the running totals are then a partial sum.' }
+
+    ChartContributionSeries:
+      type: object
+      description: One cumulative-contributions line (per real account, or the combined total).
+      required: [key, label, points]
+      properties:
+        key: { type: string, description: Account id, or the combined-total key }
+        label: { type: string }
+        points: { type: array, items: { $ref: '#/components/schemas/ChartContributionSeriesPoint' } }
+
     ChartContributionPoint:
       type: object
       required: [year, net]
@@ -1616,6 +1636,7 @@ components:
         balanceHistory: { type: array, items: { $ref: '#/components/schemas/ChartCashPoint' } }
         series: { type: array, description: One line per selected real account plus the combined total, items: { $ref: '#/components/schemas/ChartCashSeries' } }
         annualContributions: { type: array, items: { $ref: '#/components/schemas/ChartContributionPoint' } }
+        cumulativeContributions: { type: array, description: 'Cumulative net external owner funding over time: one line per selected real account plus the combined total. Computed from the funding events (deposits, withdrawals and cash/in-kind transfer legs) as a running sum.', items: { $ref: '#/components/schemas/ChartContributionSeries' } }
 
     # ─── Portfolios ────────────────────────────────────────────
     Portfolio:
