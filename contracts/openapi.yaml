@@ -1442,6 +1442,10 @@ components:
         year: { type: integer }
         month: { type: integer, minimum: 1, maximum: 12 }
         count: { type: integer, description: Distinct currently-held stocks with known payment dates in the month }
+        symbols:
+          type: array
+          description: Tickers of the distinct payers counted in the month, sorted
+          items: { type: string }
         partial: { type: boolean }
 
     ChartIncomeData:
