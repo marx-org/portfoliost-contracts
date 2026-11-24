@@ -2111,9 +2111,12 @@ components:
             realizedGains: { type: number }
             unrealizedGains: { type: number }
             annualizedReturn: { type: number, nullable: true }
-            moneyWeightedReturn: { type: number, nullable: true }
+            moneyWeightedReturn: { type: number, nullable: true, description: "Period money-weighted return (index − 100) over the window — NOT annualised. For the annualised money-weighted rate see xirr." }
             annualizedReturnWithheldReason: { type: string, nullable: true }
             moneyWeightedReturnWithheldReason: { type: string, nullable: true }
+            xirr: { type: number, nullable: true, description: "Annualised money-weighted rate (XIRR) as a percentage. Distinct from annualizedReturn, which is the time-weighted rate p.a." }
+            xirrWithheldReason: { type: string, nullable: true }
+            income: { type: number, description: "Dividends + interest received in the window, net of withholding tax, in the portfolio base currency." }
             timeWeightedReturn: { type: number, nullable: true }
             sharpeRatio: { type: number }
             sortinoRatio: { type: number }
